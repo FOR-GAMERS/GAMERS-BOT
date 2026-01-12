@@ -50,3 +50,21 @@ type ContestInvitationResult struct {
 	NotifiedUsers []string `json:"notified_users"`
 	Timestamp     string   `json:"timestamp"`
 }
+
+// ContestApplicationEventPayload represents the event payload from Web Application Server
+type ContestApplicationEventPayload struct {
+	EventType            string                 `json:"event_type"`
+	ContestID            int64                  `json:"contest_id"`
+	UserID               int64                  `json:"user_id"`
+	DiscordUserID        string                 `json:"discord_user_id"`
+	DiscordGuildID       string                 `json:"discord_guild_id"`
+	DiscordTextChannelID string                 `json:"discord_text_channel_id"`
+	Data                 map[string]interface{} `json:"data"`
+}
+
+// ApplicationNotificationResult contains the result of sending an application notification
+type ApplicationNotificationResult struct {
+	MessageID string `json:"message_id"`
+	UserID    string `json:"user_id"`
+	Timestamp string `json:"timestamp"`
+}
