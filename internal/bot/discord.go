@@ -319,3 +319,75 @@ func (b *DiscordBot) SendContestInvitation(channelID string, userIDs []string, c
 		Timestamp:     message.Timestamp.Format("2006-01-02T15:04:05Z"),
 	}, nil
 }
+
+// ApplicationStatus represents the type of application notification
+type ApplicationStatus string
+
+const (
+	StatusRequested ApplicationStatus = "REQUESTED"
+	StatusAccepted  ApplicationStatus = "ACCEPTED"
+	StatusRejected  ApplicationStatus = "REJECTED"
+)
+
+// SendApplicationNotification sends a contest application status notification to a user
+func (b *DiscordBot) SendApplicationNotification(channelID, userID, contestTitle string, status ApplicationStatus, processedByDiscordID string) (*models.ApplicationNotificationResult, error) {
+	var content string
+
+	switch status {
+	case StatusRequested:
+		content = fmt.Sprintf(
+			"**[参加申請]**\n\n"+
+				"<@%s>様が **%s** 大会に参加申請を送りました.\n"+
+				"運営人の承認をお待ちください。",
+			userID, contestTitle,
+		)
+	case StatusAccepted:
+		if processedByDiscordID != "" {
+			content = fmt.Sprintf(
+				"**[申請承認]**\n\n"+
+					"<@%s>様, **%s** 大会参加申請が完了されました。\n"+
+					"承認者: <@%s>\n"+
+					"大会参加のために準備をして下さい！",
+				userID, contestTitle, processedByDiscordID,
+			)
+		} else {
+			content = fmt.Sprintf(
+				"**[申請承認]**\n\n"+
+					"<@%s>さま, **%s** 大会参加申請が完了されました。\n"+
+					"大会参加のために準備をして下さい！",
+				userID, contestTitle,
+			)
+		}
+	case StatusRejected:
+		if processedByDiscordID != "" {
+			content = fmt.Sprintf(
+				"**[申請許節]**\n\n"+
+					"<@%s>様, **%s** 大会参加申請が断れました。\n"+
+					"処理者: <@%s>\n"+
+					"詳しい内容は運営人にご聞き下さい。",
+				userID, contestTitle, processedByDiscordID,
+			)
+		} else {
+			content = fmt.Sprintf(
+				"**[申請許節]**\n\n"+
+					"<@%s>様, **%s** 大会参加申請が断れました。\n"+
+					"詳しい内容は運営人にご聞き下さい。",
+				userID, contestTitle,
+			)
+		}
+	default:
+		return nil, fmt.Errorf("unknown application status: %s", status)
+	}
+
+	// Send the message
+	message, err := b.Session.ChannelMessageSend(channelID, content)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send application notification: %w", err)
+	}
+
+	return &models.ApplicationNotificationResult{
+		MessageID: message.ID,
+		UserID:    userID,
+		Timestamp: message.Timestamp.Format("2006-01-02T15:04:05Z"),
+	}, nil
+}

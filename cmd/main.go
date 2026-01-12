@@ -101,6 +101,8 @@ func main() {
 						cfg.RabbitMQPrefetchCount,
 						discordBot,
 						publisher,
+						cfg.RabbitMQExchange,
+						cfg.RabbitMQRoutingKey,
 					)
 					if err != nil {
 						slog.Error("Failed to create consumer", "error", err)
@@ -116,6 +118,9 @@ func main() {
 					consumer.RegisterHandler(rabbitmq.EventGetVoiceChannels, handlers.NewVoiceChannelHandler())
 					consumer.RegisterHandler(rabbitmq.EventGetTextChannels, handlers.NewTextChannelHandler())
 					consumer.RegisterHandler(rabbitmq.EventSendContestInvitation, handlers.NewContestInvitationHandler())
+					consumer.RegisterHandler(rabbitmq.EventApplicationRequested, handlers.NewApplicationRequestedHandler())
+					consumer.RegisterHandler(rabbitmq.EventApplicationAccepted, handlers.NewApplicationAcceptedHandler())
+					consumer.RegisterHandler(rabbitmq.EventApplicationRejected, handlers.NewApplicationRejectedHandler())
 
 					slog.Info("Handlers registered")
 

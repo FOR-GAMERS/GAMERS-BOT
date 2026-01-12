@@ -169,7 +169,7 @@ docker-up:
 		exit 1; \
 	fi
 	@docker network inspect gamers-network >/dev/null 2>&1 || docker network create gamers-network
-	@docker compose -f docker/docker-compose.yml up -d
+	@docker compose -p gamers-bot -f docker/docker-compose.yml up -d
 	@echo "$(COLOR_GREEN)✓ Container started: $(APP_NAME)$(COLOR_RESET)"
 
 ## docker-stop: Stop Docker container
@@ -182,7 +182,7 @@ docker-stop:
 ## docker-down: Stop and remove all Docker resources
 docker-down:
 	@echo "$(COLOR_BLUE)Stopping and removing all Docker resources...$(COLOR_RESET)"
-	@docker compose -f docker/docker-compose.yml down -v --remove-orphans
+	@docker compose -p gamers-bot -f docker/docker-compose.yml down -v --remove-orphans
 	@echo "$(COLOR_GREEN)✓ All Docker resources stopped and removed$(COLOR_RESET)"
 
 ## docker-clean: Remove Docker images and containers
