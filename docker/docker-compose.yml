@@ -7,7 +7,7 @@ services:
     env_file:
       - ../env/.env
     environment:
-      TZ: asia/Tokyo
+      TZ: "Asia/Tokyo"
     networks:
       - gamers-network
     restart: unless-stopped
