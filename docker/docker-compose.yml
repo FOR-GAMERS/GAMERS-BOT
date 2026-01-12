@@ -6,6 +6,8 @@ services:
     container_name: gamers-discord-bot
     env_file:
       - ../env/.env
+    environment:
+      TZ: asia/Tokyo
     networks:
       - gamers-network
     restart: unless-stopped
