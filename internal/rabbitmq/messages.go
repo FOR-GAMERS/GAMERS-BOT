@@ -27,6 +27,30 @@ const (
 
 	// EventApplicationRejected notifies a user that their contest application was rejected
 	EventApplicationRejected EventType = "application.rejected"
+
+	// Team invite events
+	// EventTeamInviteSent notifies when a team invite is sent
+	EventTeamInviteSent EventType = "team.invite.sent"
+	// EventTeamInviteAccepted notifies when a team invite is accepted
+	EventTeamInviteAccepted EventType = "team.invite.accepted"
+	// EventTeamInviteRejected notifies when a team invite is rejected
+	EventTeamInviteRejected EventType = "team.invite.rejected"
+
+	// Team member events
+	// EventTeamMemberJoined notifies when a member joins a team
+	EventTeamMemberJoined EventType = "team.member.joined"
+	// EventTeamMemberLeft notifies when a member leaves a team
+	EventTeamMemberLeft EventType = "team.member.left"
+	// EventTeamMemberKicked notifies when a member is kicked from a team
+	EventTeamMemberKicked EventType = "team.member.kicked"
+
+	// Team status events
+	// EventTeamLeadershipTransferred notifies when team leadership is transferred
+	EventTeamLeadershipTransferred EventType = "team.leadership.transferred"
+	// EventTeamFinalized notifies when a team is finalized
+	EventTeamFinalized EventType = "team.finalized"
+	// EventTeamDeleted notifies when a team is deleted
+	EventTeamDeleted EventType = "team.deleted"
 )
 
 // RequestMessage represents an incoming event from the request queue
