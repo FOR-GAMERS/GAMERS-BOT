@@ -94,7 +94,7 @@ func main() {
 
 					slog.Info("Publisher initialized", "queue", cfg.RabbitMQResponseQueue)
 
-					// Initialize consumer
+					// Initialize consumer with team event binding
 					consumer, err := rabbitmq.NewConsumer(
 						conn,
 						cfg.RabbitMQRequestQueue,
@@ -103,6 +103,10 @@ func main() {
 						publisher,
 						cfg.RabbitMQExchange,
 						cfg.RabbitMQRoutingKey,
+						rabbitmq.ExchangeBinding{
+							Exchange:   cfg.RabbitMQTeamExchange,
+							RoutingKey: cfg.RabbitMQTeamRoutingKey,
+						},
 					)
 					if err != nil {
 						slog.Error("Failed to create consumer", "error", err)
@@ -121,6 +125,17 @@ func main() {
 					consumer.RegisterHandler(rabbitmq.EventApplicationRequested, handlers.NewApplicationRequestedHandler())
 					consumer.RegisterHandler(rabbitmq.EventApplicationAccepted, handlers.NewApplicationAcceptedHandler())
 					consumer.RegisterHandler(rabbitmq.EventApplicationRejected, handlers.NewApplicationRejectedHandler())
+
+					// Register team event handlers
+					consumer.RegisterHandler(rabbitmq.EventTeamInviteSent, handlers.NewTeamInviteSentHandler())
+					consumer.RegisterHandler(rabbitmq.EventTeamInviteAccepted, handlers.NewTeamInviteAcceptedHandler())
+					consumer.RegisterHandler(rabbitmq.EventTeamInviteRejected, handlers.NewTeamInviteRejectedHandler())
+					consumer.RegisterHandler(rabbitmq.EventTeamMemberJoined, handlers.NewTeamMemberJoinedHandler())
+					consumer.RegisterHandler(rabbitmq.EventTeamMemberLeft, handlers.NewTeamMemberLeftHandler())
+					consumer.RegisterHandler(rabbitmq.EventTeamMemberKicked, handlers.NewTeamMemberKickedHandler())
+					consumer.RegisterHandler(rabbitmq.EventTeamLeadershipTransferred, handlers.NewTeamLeadershipTransferredHandler())
+					consumer.RegisterHandler(rabbitmq.EventTeamFinalized, handlers.NewTeamFinalizedHandler())
+					consumer.RegisterHandler(rabbitmq.EventTeamDeleted, handlers.NewTeamDeletedHandler())
 
 					slog.Info("Handlers registered")
 
