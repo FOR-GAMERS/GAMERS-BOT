@@ -27,6 +27,58 @@ const (
 
 	// EventApplicationRejected notifies a user that their contest application was rejected
 	EventApplicationRejected EventType = "application.rejected"
+
+	// Team invite events
+	// EventTeamInviteSent notifies when a team invite is sent
+	EventTeamInviteSent EventType = "team.invite.sent"
+	// EventTeamInviteAccepted notifies when a team invite is accepted
+	EventTeamInviteAccepted EventType = "team.invite.accepted"
+	// EventTeamInviteRejected notifies when a team invite is rejected
+	EventTeamInviteRejected EventType = "team.invite.rejected"
+
+	// Team member events
+	// EventTeamMemberJoined notifies when a member joins a team
+	EventTeamMemberJoined EventType = "team.member.joined"
+	// EventTeamMemberLeft notifies when a member leaves a team
+	EventTeamMemberLeft EventType = "team.member.left"
+	// EventTeamMemberKicked notifies when a member is kicked from a team
+	EventTeamMemberKicked EventType = "team.member.kicked"
+
+	// Team status events
+	// EventTeamLeadershipTransferred notifies when team leadership is transferred
+	EventTeamLeadershipTransferred EventType = "team.leadership.transferred"
+	// EventTeamFinalized notifies when a team is finalized
+	EventTeamFinalized EventType = "team.finalized"
+	// EventTeamDeleted notifies when a team is deleted
+	EventTeamDeleted EventType = "team.deleted"
+
+	// Application lifecycle events
+	// EventApplicationCancelled notifies when a contest application is cancelled
+	EventApplicationCancelled EventType = "application.cancelled"
+	// EventMemberWithdrawn notifies when a member withdraws from a contest
+	EventMemberWithdrawn EventType = "member.withdrawn"
+
+	// Contest events
+	// EventContestCreated notifies when a new contest is created
+	EventContestCreated EventType = "contest.created"
+
+	// Game lifecycle events
+	// EventGameScheduled notifies when a game is scheduled
+	EventGameScheduled EventType = "game.scheduled"
+	// EventGameActivated notifies when a game becomes active
+	EventGameActivated EventType = "game.activated"
+	// EventGameMatchDetecting notifies when match detection starts
+	EventGameMatchDetecting EventType = "game.match.detecting"
+	// EventGameMatchDetected notifies when a match is detected
+	EventGameMatchDetected EventType = "game.match.detected"
+	// EventGameMatchFailed notifies when match detection fails
+	EventGameMatchFailed EventType = "game.match.failed"
+	// EventGameFinished notifies when a game finishes
+	EventGameFinished EventType = "game.finished"
+
+	// Contest teams ready event
+	// EventContestTeamsReady notifies when all teams in a contest are ready
+	EventContestTeamsReady EventType = "game.contest.teams.ready"
 )
 
 // RequestMessage represents an incoming event from the request queue

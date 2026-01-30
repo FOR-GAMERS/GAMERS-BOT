@@ -83,7 +83,7 @@ func main() {
 					slog.Info("Connected to RabbitMQ")
 					discordBot.NotifyRabbitMQStatus(true, nil)
 
-					// Initialize publisher
+					// Initialize publisher (for legacy queue responses)
 					publisher, err := rabbitmq.NewPublisher(conn, cfg.RabbitMQResponseQueue)
 					if err != nil {
 						slog.Error("Failed to create publisher", "error", err)
@@ -94,44 +94,88 @@ func main() {
 
 					slog.Info("Publisher initialized", "queue", cfg.RabbitMQResponseQueue)
 
-					// Initialize consumer
-					consumer, err := rabbitmq.NewConsumer(
+					// Initialize ConsumerManager
+					manager := rabbitmq.NewConsumerManager(
 						conn,
-						cfg.RabbitMQRequestQueue,
+						cfg.RabbitMQExchange,
 						cfg.RabbitMQPrefetchCount,
 						discordBot,
 						publisher,
-						cfg.RabbitMQExchange,
-						cfg.RabbitMQRoutingKey,
 					)
-					if err != nil {
-						slog.Error("Failed to create consumer", "error", err)
+
+					// Setup new queue topology (gamers.events exchange + 4 queues)
+					if err := manager.SetupTopology(); err != nil {
+						slog.Error("Failed to setup topology", "error", err)
 						publisher.Close()
 						conn.Close()
 						time.Sleep(10 * time.Second)
 						continue
 					}
 
-					// Register handlers
-					consumer.RegisterHandler(rabbitmq.EventSendMessage, handlers.NewMessageHandler())
-					consumer.RegisterHandler(rabbitmq.EventMoveMembers, handlers.NewVoiceHandler())
-					consumer.RegisterHandler(rabbitmq.EventGetVoiceChannels, handlers.NewVoiceChannelHandler())
-					consumer.RegisterHandler(rabbitmq.EventGetTextChannels, handlers.NewTextChannelHandler())
-					consumer.RegisterHandler(rabbitmq.EventSendContestInvitation, handlers.NewContestInvitationHandler())
-					consumer.RegisterHandler(rabbitmq.EventApplicationRequested, handlers.NewApplicationRequestedHandler())
-					consumer.RegisterHandler(rabbitmq.EventApplicationAccepted, handlers.NewApplicationAcceptedHandler())
-					consumer.RegisterHandler(rabbitmq.EventApplicationRejected, handlers.NewApplicationRejectedHandler())
+					// Setup legacy queue (discord.commands bound to legacy exchanges)
+					legacyBindings := []rabbitmq.LegacyBinding{
+						{Exchange: cfg.RabbitMQTeamExchange, RoutingKey: cfg.RabbitMQTeamRoutingKey},
+					}
+					if err := manager.SetupLegacyQueue(cfg.RabbitMQRequestQueue, legacyBindings); err != nil {
+						slog.Error("Failed to setup legacy queue", "error", err)
+						publisher.Close()
+						conn.Close()
+						time.Sleep(10 * time.Second)
+						continue
+					}
 
-					slog.Info("Handlers registered")
+					// Register legacy handlers (request/response pattern)
+					manager.RegisterHandler(rabbitmq.EventSendMessage, handlers.NewMessageHandler())
+					manager.RegisterHandler(rabbitmq.EventMoveMembers, handlers.NewVoiceHandler())
+					manager.RegisterHandler(rabbitmq.EventGetVoiceChannels, handlers.NewVoiceChannelHandler())
+					manager.RegisterHandler(rabbitmq.EventGetTextChannels, handlers.NewTextChannelHandler())
+					manager.RegisterHandler(rabbitmq.EventSendContestInvitation, handlers.NewContestInvitationHandler())
 
-					// Start consumer (blocking)
-					slog.Info("Starting consumer", "queue", cfg.RabbitMQRequestQueue)
-					if err := consumer.Start(ctx); err != nil && !errors.Is(err, context.Canceled) {
-						slog.Error("Consumer error", "error", err)
+					// Register application event handlers
+					manager.RegisterHandler(rabbitmq.EventApplicationRequested, handlers.NewApplicationRequestedHandler())
+					manager.RegisterHandler(rabbitmq.EventApplicationAccepted, handlers.NewApplicationAcceptedHandler())
+					manager.RegisterHandler(rabbitmq.EventApplicationRejected, handlers.NewApplicationRejectedHandler())
+					manager.RegisterHandler(rabbitmq.EventApplicationCancelled, handlers.NewApplicationCancelledHandler())
+					manager.RegisterHandler(rabbitmq.EventMemberWithdrawn, handlers.NewMemberWithdrawnHandler())
+
+					// Register team event handlers
+					manager.RegisterHandler(rabbitmq.EventTeamInviteSent, handlers.NewTeamInviteSentHandler())
+					manager.RegisterHandler(rabbitmq.EventTeamInviteAccepted, handlers.NewTeamInviteAcceptedHandler())
+					manager.RegisterHandler(rabbitmq.EventTeamInviteRejected, handlers.NewTeamInviteRejectedHandler())
+					manager.RegisterHandler(rabbitmq.EventTeamMemberJoined, handlers.NewTeamMemberJoinedHandler())
+					manager.RegisterHandler(rabbitmq.EventTeamMemberLeft, handlers.NewTeamMemberLeftHandler())
+					manager.RegisterHandler(rabbitmq.EventTeamMemberKicked, handlers.NewTeamMemberKickedHandler())
+					manager.RegisterHandler(rabbitmq.EventTeamLeadershipTransferred, handlers.NewTeamLeadershipTransferredHandler())
+					manager.RegisterHandler(rabbitmq.EventTeamFinalized, handlers.NewTeamFinalizedHandler())
+					manager.RegisterHandler(rabbitmq.EventTeamDeleted, handlers.NewTeamDeletedHandler())
+
+					// Register contest event handlers
+					manager.RegisterHandler(rabbitmq.EventContestCreated, handlers.NewContestCreatedHandler())
+
+					// Register game event handlers
+					manager.RegisterHandler(rabbitmq.EventGameScheduled, handlers.NewGameScheduledHandler())
+					manager.RegisterHandler(rabbitmq.EventGameActivated, handlers.NewGameActivatedHandler())
+					manager.RegisterHandler(rabbitmq.EventGameMatchDetecting, handlers.NewGameMatchDetectingHandler())
+					manager.RegisterHandler(rabbitmq.EventGameMatchDetected, handlers.NewGameMatchDetectedHandler())
+					manager.RegisterHandler(rabbitmq.EventGameMatchFailed, handlers.NewGameMatchFailedHandler())
+					manager.RegisterHandler(rabbitmq.EventGameFinished, handlers.NewGameFinishedHandler())
+
+					// Register contest teams ready handler
+					manager.RegisterHandler(rabbitmq.EventContestTeamsReady, handlers.NewContestTeamsReadyHandler())
+
+					slog.Info("All handlers registered")
+
+					// Start all consumers (blocking)
+					slog.Info("Starting ConsumerManager",
+						"exchange", cfg.RabbitMQExchange,
+						"legacy_queue", cfg.RabbitMQRequestQueue,
+					)
+					if err := manager.Start(ctx, cfg.RabbitMQRequestQueue); err != nil && !errors.Is(err, context.Canceled) {
+						slog.Error("ConsumerManager error", "error", err)
 					}
 
 					// Cleanup
-					consumer.Close()
+					manager.Close()
 					publisher.Close()
 					conn.Close()
 
