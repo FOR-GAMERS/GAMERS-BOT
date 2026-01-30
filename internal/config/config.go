@@ -39,7 +39,7 @@ func Load() (*Config, error) {
 		RabbitMQRequestQueue:   getEnvOrDefault("RABBITMQ_REQUEST_QUEUE", "discord.commands"),
 		RabbitMQResponseQueue:  getEnvOrDefault("RABBITMQ_RESPONSE_QUEUE", "discord.responses"),
 		RabbitMQPrefetchCount:  getEnvAsIntOrDefault("RABBITMQ_PREFETCH_COUNT", 1),
-		RabbitMQExchange:       getEnvOrDefault("RABBITMQ_EXCHANGE", "contest.events"),
+		RabbitMQExchange:       getEnvOrDefault("RABBITMQ_EXCHANGE", "gamers.events"),
 		RabbitMQRoutingKey:     getEnvOrDefault("RABBITMQ_ROUTING_KEY", "contest.#"),
 		RabbitMQTeamExchange:   getEnvOrDefault("RABBITMQ_TEAM_EXCHANGE", "game.events"),
 		RabbitMQTeamRoutingKey: getEnvOrDefault("RABBITMQ_TEAM_ROUTING_KEY", "game.team.#"),
