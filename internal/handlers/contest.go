@@ -4,10 +4,24 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 
 	"github.com/gamers-bot/internal/bot"
 	"github.com/gamers-bot/internal/models"
 )
+
+// ContestCreatedHandler handles contest.created events
+type ContestCreatedHandler struct{}
+
+func NewContestCreatedHandler() *ContestCreatedHandler {
+	return &ContestCreatedHandler{}
+}
+
+func (h *ContestCreatedHandler) Handle(ctx context.Context, b *bot.DiscordBot, guildID string, payload map[string]interface{}) (map[string]interface{}, error) {
+	// TODO: Discord 알림 전송 로직
+	slog.Info("ContestCreatedHandler invoked", "guild_id", guildID)
+	return nil, nil
+}
 
 // ContestInvitationHandler handles SEND_CONTEST_INVITATION events
 type ContestInvitationHandler struct{}

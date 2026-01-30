@@ -129,3 +129,42 @@ type TeamNotificationResult struct {
 	MessageID string `json:"message_id"`
 	Timestamp string `json:"timestamp"`
 }
+
+// BaseEvent contains common fields embedded in all event payloads from gamers.events
+type BaseEvent struct {
+	EventID   string `json:"event_id"`
+	EventType string `json:"event_type"`
+	Timestamp string `json:"timestamp"`
+}
+
+// GameEventPayload represents the payload for game lifecycle events
+// Used for: game.scheduled, game.activated, game.match.*, game.finished
+type GameEventPayload struct {
+	BaseEvent
+	GameID               int64                  `json:"game_id"`
+	ContestID            int64                  `json:"contest_id"`
+	DiscordGuildID       string                 `json:"discord_guild_id"`
+	DiscordTextChannelID string                 `json:"discord_text_channel_id"`
+	Data                 map[string]interface{} `json:"data"`
+}
+
+// ContestTeamsReadyPayload represents the payload for game.contest.teams.ready events
+type ContestTeamsReadyPayload struct {
+	BaseEvent
+	GameID               int64                  `json:"game_id"`
+	ContestID            int64                  `json:"contest_id"`
+	DiscordGuildID       string                 `json:"discord_guild_id"`
+	DiscordTextChannelID string                 `json:"discord_text_channel_id"`
+	TeamCount            int                    `json:"team_count"`
+	Data                 map[string]interface{} `json:"data"`
+}
+
+// ContestCreatedEventPayload represents the payload for contest.created events
+type ContestCreatedEventPayload struct {
+	BaseEvent
+	ContestID            int64                  `json:"contest_id"`
+	ContestTitle         string                 `json:"contest_title"`
+	DiscordGuildID       string                 `json:"discord_guild_id"`
+	DiscordTextChannelID string                 `json:"discord_text_channel_id"`
+	Data                 map[string]interface{} `json:"data"`
+}

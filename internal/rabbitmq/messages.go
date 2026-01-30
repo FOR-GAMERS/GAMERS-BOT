@@ -51,6 +51,34 @@ const (
 	EventTeamFinalized EventType = "team.finalized"
 	// EventTeamDeleted notifies when a team is deleted
 	EventTeamDeleted EventType = "team.deleted"
+
+	// Application lifecycle events
+	// EventApplicationCancelled notifies when a contest application is cancelled
+	EventApplicationCancelled EventType = "application.cancelled"
+	// EventMemberWithdrawn notifies when a member withdraws from a contest
+	EventMemberWithdrawn EventType = "member.withdrawn"
+
+	// Contest events
+	// EventContestCreated notifies when a new contest is created
+	EventContestCreated EventType = "contest.created"
+
+	// Game lifecycle events
+	// EventGameScheduled notifies when a game is scheduled
+	EventGameScheduled EventType = "game.scheduled"
+	// EventGameActivated notifies when a game becomes active
+	EventGameActivated EventType = "game.activated"
+	// EventGameMatchDetecting notifies when match detection starts
+	EventGameMatchDetecting EventType = "game.match.detecting"
+	// EventGameMatchDetected notifies when a match is detected
+	EventGameMatchDetected EventType = "game.match.detected"
+	// EventGameMatchFailed notifies when match detection fails
+	EventGameMatchFailed EventType = "game.match.failed"
+	// EventGameFinished notifies when a game finishes
+	EventGameFinished EventType = "game.finished"
+
+	// Contest teams ready event
+	// EventContestTeamsReady notifies when all teams in a contest are ready
+	EventContestTeamsReady EventType = "game.contest.teams.ready"
 )
 
 // RequestMessage represents an incoming event from the request queue

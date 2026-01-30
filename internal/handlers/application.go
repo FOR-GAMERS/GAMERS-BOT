@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 
 	"github.com/gamers-bot/internal/bot"
 	"github.com/gamers-bot/internal/models"
@@ -46,6 +47,32 @@ func NewApplicationRejectedHandler() *ApplicationRejectedHandler {
 // Handle processes an APPLICATION_REJECTED event
 func (h *ApplicationRejectedHandler) Handle(ctx context.Context, b *bot.DiscordBot, guildID string, payload map[string]interface{}) (map[string]interface{}, error) {
 	return handleApplicationNotification(b, payload, bot.StatusRejected)
+}
+
+// ApplicationCancelledHandler handles application.cancelled events
+type ApplicationCancelledHandler struct{}
+
+func NewApplicationCancelledHandler() *ApplicationCancelledHandler {
+	return &ApplicationCancelledHandler{}
+}
+
+func (h *ApplicationCancelledHandler) Handle(ctx context.Context, b *bot.DiscordBot, guildID string, payload map[string]interface{}) (map[string]interface{}, error) {
+	// TODO: Discord 알림 전송 로직
+	slog.Info("ApplicationCancelledHandler invoked", "guild_id", guildID)
+	return nil, nil
+}
+
+// MemberWithdrawnHandler handles member.withdrawn events
+type MemberWithdrawnHandler struct{}
+
+func NewMemberWithdrawnHandler() *MemberWithdrawnHandler {
+	return &MemberWithdrawnHandler{}
+}
+
+func (h *MemberWithdrawnHandler) Handle(ctx context.Context, b *bot.DiscordBot, guildID string, payload map[string]interface{}) (map[string]interface{}, error) {
+	// TODO: Discord 알림 전송 로직
+	slog.Info("MemberWithdrawnHandler invoked", "guild_id", guildID)
+	return nil, nil
 }
 
 // handleApplicationNotification is a shared function for handling application notifications
