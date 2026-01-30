@@ -21,8 +21,14 @@ type Consumer struct {
 	publisher     *Publisher
 }
 
+// ExchangeBinding represents an exchange and routing key binding
+type ExchangeBinding struct {
+	Exchange   string
+	RoutingKey string
+}
+
 // NewConsumer creates a new Consumer
-func NewConsumer(conn *amqp.Connection, queueName string, prefetchCount int, bot *bot.DiscordBot, publisher *Publisher) (*Consumer, error) {
+func NewConsumer(conn *amqp.Connection, queueName string, prefetchCount int, bot *bot.DiscordBot, publisher *Publisher, exchange string, routingKey string, additionalBindings ...ExchangeBinding) (*Consumer, error) {
 	channel, err := conn.Channel()
 	if err != nil {
 		return nil, fmt.Errorf("failed to open channel: %w", err)
@@ -35,7 +41,10 @@ func NewConsumer(conn *amqp.Connection, queueName string, prefetchCount int, bot
 		false,         // global
 	)
 	if err != nil {
-		channel.Close()
+		err := channel.Close()
+		if err != nil {
+			return nil, err
+		}
 		return nil, fmt.Errorf("failed to set QoS: %w", err)
 	}
 
@@ -49,8 +58,81 @@ func NewConsumer(conn *amqp.Connection, queueName string, prefetchCount int, bot
 		nil,       // arguments
 	)
 	if err != nil {
-		channel.Close()
+		err := channel.Close()
+		if err != nil {
+			return nil, err
+		}
 		return nil, fmt.Errorf("failed to declare queue: %w", err)
+	}
+
+	// Bind queue to exchange if exchange is specified
+	if exchange != "" {
+		// Declare the exchange (topic type for routing key patterns)
+		err = channel.ExchangeDeclare(
+			exchange, // name
+			"topic",  // type
+			true,     // durable
+			false,    // auto-deleted
+			false,    // internal
+			false,    // no-wait
+			nil,      // arguments
+		)
+		if err != nil {
+			channel.Close()
+			return nil, fmt.Errorf("failed to declare exchange: %w", err)
+		}
+
+		// Bind queue to exchange with routing key
+		err = channel.QueueBind(
+			queueName,  // queue name
+			routingKey, // routing key
+			exchange,   // exchange
+			false,      // no-wait
+			nil,        // arguments
+		)
+		if err != nil {
+			channel.Close()
+			return nil, fmt.Errorf("failed to bind queue to exchange: %w", err)
+		}
+
+		slog.Info("Queue bound to exchange", "queue", queueName, "exchange", exchange, "routing_key", routingKey)
+	}
+
+	// Bind queue to additional exchanges
+	for _, binding := range additionalBindings {
+		if binding.Exchange == "" {
+			continue
+		}
+
+		// Declare the additional exchange
+		err = channel.ExchangeDeclare(
+			binding.Exchange, // name
+			"topic",          // type
+			true,             // durable
+			false,            // auto-deleted
+			false,            // internal
+			false,            // no-wait
+			nil,              // arguments
+		)
+		if err != nil {
+			channel.Close()
+			return nil, fmt.Errorf("failed to declare exchange %s: %w", binding.Exchange, err)
+		}
+
+		// Bind queue to the additional exchange
+		err = channel.QueueBind(
+			queueName,          // queue name
+			binding.RoutingKey, // routing key
+			binding.Exchange,   // exchange
+			false,              // no-wait
+			nil,                // arguments
+		)
+		if err != nil {
+			channel.Close()
+			return nil, fmt.Errorf("failed to bind queue to exchange %s: %w", binding.Exchange, err)
+		}
+
+		slog.Info("Queue bound to exchange", "queue", queueName, "exchange", binding.Exchange, "routing_key", binding.RoutingKey)
 	}
 
 	return &Consumer{
@@ -102,22 +184,32 @@ func (c *Consumer) Start(ctx context.Context) error {
 
 // handleMessage processes a single message
 func (c *Consumer) handleMessage(ctx context.Context, msg amqp.Delivery) {
+	// Log raw message for debugging
+	slog.Info("Received raw message", "body", string(msg.Body))
+
 	// Parse request message
 	var request RequestMessage
 	if err := json.Unmarshal(msg.Body, &request); err != nil {
 		slog.Error("Failed to unmarshal request", "error", err)
 		c.sendErrorResponse(ctx, "", fmt.Errorf("invalid message format: %w", err))
-		msg.Nack(false, false) // Don't requeue invalid messages
+		err := msg.Nack(false, false)
+		if err != nil {
+			return
+		} // Don't requeue invalid messages
 		return
 	}
 
-	slog.Info("Processing event", "correlation_id", request.CorrelationID, "guild_id", request.GuildID, "event_type", request.EventType)
+	guildID := request.GetGuildID()
+	slog.Info("Processing event", "correlation_id", request.CorrelationID, "guild_id", guildID, "event_type", request.EventType)
 
 	// Validate guild_id
-	if request.GuildID == "" {
+	if guildID == "" {
 		slog.Error("Missing guild_id in request")
 		c.sendErrorResponse(ctx, request.CorrelationID, fmt.Errorf("guild_id is required"))
-		msg.Nack(false, false) // Don't requeue invalid messages
+		err := msg.Nack(false, false)
+		if err != nil {
+			return
+		} // Don't requeue invalid messages
 		return
 	}
 
@@ -126,31 +218,69 @@ func (c *Consumer) handleMessage(ctx context.Context, msg amqp.Delivery) {
 	if !ok {
 		slog.Error("Unsupported event type", "event_type", request.EventType)
 		c.sendErrorResponse(ctx, request.CorrelationID, fmt.Errorf("unsupported event type: %s", request.EventType))
-		msg.Nack(false, false) // Don't requeue unsupported events
+		err := msg.Nack(false, false)
+		if err != nil {
+			return
+		} // Don't requeue unsupported events
 		return
 	}
 
+	// Prepare payload based on event type
+	// For Application and Team events, use the full message body as payload (WAS format)
+	// For legacy events, use the Payload field
+	payload := request.Payload
+	if isApplicationEvent(request.EventType) {
+		payload = map[string]interface{}{
+			"event_type":              string(request.EventType),
+			"contest_id":              request.ContestID,
+			"user_id":                 request.UserID,
+			"discord_user_id":         request.DiscordUserID,
+			"discord_guild_id":        request.DiscordGuildID,
+			"discord_text_channel_id": request.DiscordTextChannelID,
+			"data":                    request.Data,
+		}
+	} else if isTeamEvent(request.EventType) {
+		// For team events, use the full message body as payload
+		var fullPayload map[string]interface{}
+		if err := json.Unmarshal(msg.Body, &fullPayload); err != nil {
+			slog.Error("Failed to unmarshal team event payload", "error", err)
+			c.sendErrorResponse(ctx, request.CorrelationID, fmt.Errorf("invalid team event payload: %w", err))
+			msg.Nack(false, false)
+			return
+		}
+		payload = fullPayload
+	}
+
 	// Handle the event
-	data, err := handler.Handle(ctx, c.bot, request.GuildID, request.Payload)
+	data, err := handler.Handle(ctx, c.bot, guildID, payload)
 	if err != nil {
 		slog.Error("Handler failed", "correlation_id", request.CorrelationID, "error", err)
 
 		// Check if error is retriable
-		if isRetriableError(err) {
+		if isRetriableError() {
 			slog.Info("Requeuing message", "correlation_id", request.CorrelationID)
-			msg.Nack(false, true) // Requeue for retry
+			err := msg.Nack(false, true)
+			if err != nil {
+				return
+			} // Requeue for retry
 			return
 		}
 
 		// Non-retriable error: send error response and don't requeue
 		c.sendErrorResponse(ctx, request.CorrelationID, err)
-		msg.Nack(false, false)
+		err := msg.Nack(false, false)
+		if err != nil {
+			return
+		}
 		return
 	}
 
 	// Send success response
 	c.sendSuccessResponse(ctx, request.CorrelationID, data)
-	msg.Ack(false)
+	err = msg.Ack(false)
+	if err != nil {
+		return
+	}
 	slog.Info("Event processed successfully", "correlation_id", request.CorrelationID)
 }
 
@@ -181,11 +311,33 @@ func (c *Consumer) sendErrorResponse(ctx context.Context, correlationID string, 
 }
 
 // isRetriableError determines if an error is retriable
-func isRetriableError(err error) bool {
+func isRetriableError() bool {
 	// For now, we consider most errors as non-retriable
 	// In the future, you can add logic to check for specific error types
 	// that indicate temporary issues (network timeouts, rate limits, etc.)
 	return false
+}
+
+// isApplicationEvent checks if the event type is an application event (WAS format)
+func isApplicationEvent(eventType EventType) bool {
+	switch eventType {
+	case EventApplicationRequested, EventApplicationAccepted, EventApplicationRejected:
+		return true
+	default:
+		return false
+	}
+}
+
+// isTeamEvent checks if the event type is a team event (WAS format)
+func isTeamEvent(eventType EventType) bool {
+	switch eventType {
+	case EventTeamInviteSent, EventTeamInviteAccepted, EventTeamInviteRejected,
+		EventTeamMemberJoined, EventTeamMemberLeft, EventTeamMemberKicked,
+		EventTeamLeadershipTransferred, EventTeamFinalized, EventTeamDeleted:
+		return true
+	default:
+		return false
+	}
 }
 
 // Close closes the consumer channel

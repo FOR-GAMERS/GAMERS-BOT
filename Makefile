@@ -1,4 +1,4 @@
-.PHONY: help build run test clean docker-build docker-up docker-stop docker-down fmt lint vet deps tidy setup env
+.PHONY: help build run test clean docker-build docker-up docker-rebuild docker-stop docker-down fmt lint vet deps tidy setup env
 
 # Variables
 APP_NAME := gamers-discord-bot
@@ -45,6 +45,7 @@ help:
 	@echo "$(COLOR_GREEN)Docker:$(COLOR_RESET)"
 	@echo "  $(COLOR_YELLOW)make docker-build$(COLOR_RESET)    - Build Docker image"
 	@echo "  $(COLOR_YELLOW)make docker-up$(COLOR_RESET)       - Start Docker container with docker-compose"
+	@echo "  $(COLOR_YELLOW)make docker-rebuild$(COLOR_RESET)  - Build and start Docker container (ensures latest build)"
 	@echo "  $(COLOR_YELLOW)make docker-stop$(COLOR_RESET)     - Stop Docker container"
 	@echo "  $(COLOR_YELLOW)make docker-down$(COLOR_RESET)     - Stop and remove all Docker resources (containers, networks, volumes)"
 	@echo "  $(COLOR_YELLOW)make docker-clean$(COLOR_RESET)    - Remove Docker images and containers"
@@ -158,19 +159,26 @@ tidy:
 ## docker-build: Build Docker image
 docker-build:
 	@echo "$(COLOR_BLUE)Building Docker image...$(COLOR_RESET)"
-	@docker build -f docker/Dockerfile -t $(DOCKER_IMAGE) .
-	@echo "$(COLOR_GREEN)✓ Docker image built: $(DOCKER_IMAGE)$(COLOR_RESET)"
+	@docker compose -p gamers-bot -f docker/docker-compose.yml build
+	@echo "$(COLOR_GREEN)✓ Docker image built$(COLOR_RESET)"
+	@echo "$(COLOR_BLUE)Removing dangling images...$(COLOR_RESET)"
+	@docker image prune -f || true
+	@echo "$(COLOR_GREEN)✓ Dangling images removed$(COLOR_RESET)"
 
-## docker-up: Start Docker container with docker-compose
+## docker-up: Start Docker container with docker-compose (uses latest built image)
 docker-up:
 	@echo "$(COLOR_BLUE)Starting Docker container with docker-compose...$(COLOR_RESET)"
 	@if [ ! -f env/.env ]; then \
-		echo "$(COLOR_YELLOW)Warning: env/.env file not found. Run 'make env' first$(COLOR_RESET)"; \
-		exit 1; \
+	   echo "$(COLOR_YELLOW)Warning: env/.env file not found. Run 'make env' first$(COLOR_RESET)"; \
+	   exit 1; \
 	fi
 	@docker network inspect gamers-network >/dev/null 2>&1 || docker network create gamers-network
-	@docker compose -f docker/docker-compose.yml up -d
+	@docker compose -p gamers-bot -f docker/docker-compose.yml up -d --force-recreate
 	@echo "$(COLOR_GREEN)✓ Container started: $(APP_NAME)$(COLOR_RESET)"
+
+## docker-rebuild: Build and start Docker container (ensures latest build)
+docker-rebuild: docker-build docker-up
+	@echo "$(COLOR_GREEN)✓ Docker container rebuilt and started$(COLOR_RESET)"
 
 ## docker-stop: Stop Docker container
 docker-stop:
@@ -182,7 +190,7 @@ docker-stop:
 ## docker-down: Stop and remove all Docker resources
 docker-down:
 	@echo "$(COLOR_BLUE)Stopping and removing all Docker resources...$(COLOR_RESET)"
-	@docker compose -f docker/docker-compose.yml down -v --remove-orphans
+	@docker compose -p gamers-bot -f docker/docker-compose.yml down -v --remove-orphans
 	@echo "$(COLOR_GREEN)✓ All Docker resources stopped and removed$(COLOR_RESET)"
 
 ## docker-clean: Remove Docker images and containers

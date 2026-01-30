@@ -15,6 +15,12 @@ type Config struct {
 	RabbitMQRequestQueue  string
 	RabbitMQResponseQueue string
 	RabbitMQPrefetchCount int
+	RabbitMQExchange      string
+	RabbitMQRoutingKey    string
+
+	// Team event configuration
+	RabbitMQTeamExchange   string
+	RabbitMQTeamRoutingKey string
 }
 
 func Load() (*Config, error) {
@@ -28,11 +34,15 @@ func Load() (*Config, error) {
 	}
 
 	config := &Config{
-		DiscordToken:          os.Getenv("DISCORD_TOKEN"),
-		RabbitMQURL:           rabbitMQURL,
-		RabbitMQRequestQueue:  getEnvOrDefault("RABBITMQ_REQUEST_QUEUE", "discord.commands"),
-		RabbitMQResponseQueue: getEnvOrDefault("RABBITMQ_RESPONSE_QUEUE", "discord.responses"),
-		RabbitMQPrefetchCount: getEnvAsIntOrDefault("RABBITMQ_PREFETCH_COUNT", 1),
+		DiscordToken:           os.Getenv("DISCORD_TOKEN"),
+		RabbitMQURL:            rabbitMQURL,
+		RabbitMQRequestQueue:   getEnvOrDefault("RABBITMQ_REQUEST_QUEUE", "discord.commands"),
+		RabbitMQResponseQueue:  getEnvOrDefault("RABBITMQ_RESPONSE_QUEUE", "discord.responses"),
+		RabbitMQPrefetchCount:  getEnvAsIntOrDefault("RABBITMQ_PREFETCH_COUNT", 1),
+		RabbitMQExchange:       getEnvOrDefault("RABBITMQ_EXCHANGE", "contest.events"),
+		RabbitMQRoutingKey:     getEnvOrDefault("RABBITMQ_ROUTING_KEY", "contest.#"),
+		RabbitMQTeamExchange:   getEnvOrDefault("RABBITMQ_TEAM_EXCHANGE", "game.events"),
+		RabbitMQTeamRoutingKey: getEnvOrDefault("RABBITMQ_TEAM_ROUTING_KEY", "game.team.#"),
 	}
 
 	if err := config.Validate(); err != nil {
