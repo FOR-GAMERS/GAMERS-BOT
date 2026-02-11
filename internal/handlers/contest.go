@@ -18,9 +18,29 @@ func NewContestCreatedHandler() *ContestCreatedHandler {
 }
 
 func (h *ContestCreatedHandler) Handle(ctx context.Context, b *bot.DiscordBot, guildID string, payload map[string]interface{}) (map[string]interface{}, error) {
-	// TODO: Discord 알림 전송 로직
-	slog.Info("ContestCreatedHandler invoked", "guild_id", guildID)
-	return nil, nil
+	var event models.ContestCreatedEventPayload
+	if err := unmarshalPayload(payload, &event); err != nil {
+		return nil, err
+	}
+
+	if event.DiscordTextChannelID == "" {
+		slog.Warn("contest.created: discord_text_channel_id is empty, skipping", "contest_id", event.ContestID)
+		return nil, nil
+	}
+
+	content := fmt.Sprintf(
+		"**[大会作成]**\n\n"+
+			"新しい大会 **%s** が作成されました！\n"+
+			"参加申請をお待ちしております。",
+		event.ContestTitle,
+	)
+
+	result, err := b.SendMessage(event.DiscordTextChannelID, content)
+	if err != nil {
+		return nil, fmt.Errorf("contest.created: failed to send message: %w", err)
+	}
+
+	return marshalResult(result)
 }
 
 // ContestInvitationHandler handles SEND_CONTEST_INVITATION events
@@ -32,8 +52,7 @@ func NewContestInvitationHandler() *ContestInvitationHandler {
 }
 
 // Handle processes a SEND_CONTEST_INVITATION event
-func (h *ContestInvitationHandler) Handle(ctx context.Context, bot *bot.DiscordBot, guildID string, payload map[string]interface{}) (map[string]interface{}, error) {
-	// Parse payload to ContestInvitationPayload
+func (h *ContestInvitationHandler) Handle(ctx context.Context, b *bot.DiscordBot, guildID string, payload map[string]interface{}) (map[string]interface{}, error) {
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal payload: %w", err)
@@ -44,7 +63,6 @@ func (h *ContestInvitationHandler) Handle(ctx context.Context, bot *bot.DiscordB
 		return nil, fmt.Errorf("failed to unmarshal payload: %w", err)
 	}
 
-	// Validate payload
 	if invitePayload.ChannelID == "" {
 		return nil, fmt.Errorf("channel_id is required")
 	}
@@ -55,8 +73,7 @@ func (h *ContestInvitationHandler) Handle(ctx context.Context, bot *bot.DiscordB
 		return nil, fmt.Errorf("contest_name is required")
 	}
 
-	// Send contest invitation
-	result, err := bot.SendContestInvitation(
+	result, err := b.SendContestInvitation(
 		invitePayload.ChannelID,
 		invitePayload.UserIDs,
 		invitePayload.ContestName,
@@ -66,16 +83,17 @@ func (h *ContestInvitationHandler) Handle(ctx context.Context, bot *bot.DiscordB
 		return nil, err
 	}
 
-	// Convert result to map
-	resultBytes, err := json.Marshal(result)
+	return marshalResult(result)
+}
+
+// unmarshalPayload is a helper to marshal+unmarshal a map into a typed struct.
+func unmarshalPayload(payload map[string]interface{}, dest interface{}) error {
+	b, err := json.Marshal(payload)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal result: %w", err)
+		return fmt.Errorf("failed to marshal payload: %w", err)
 	}
-
-	var resultMap map[string]interface{}
-	if err := json.Unmarshal(resultBytes, &resultMap); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal result: %w", err)
+	if err := json.Unmarshal(b, dest); err != nil {
+		return fmt.Errorf("failed to unmarshal payload: %w", err)
 	}
-
-	return resultMap, nil
+	return nil
 }

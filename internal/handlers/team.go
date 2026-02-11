@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 
 	"github.com/gamers-bot/internal/bot"
 	"github.com/gamers-bot/internal/models"
@@ -14,7 +15,6 @@ import (
 // TeamInviteSentHandler handles team.invite.sent events
 type TeamInviteSentHandler struct{}
 
-// NewTeamInviteSentHandler creates a new TeamInviteSentHandler
 func NewTeamInviteSentHandler() *TeamInviteSentHandler {
 	return &TeamInviteSentHandler{}
 }
@@ -26,15 +26,15 @@ func (h *TeamInviteSentHandler) Handle(ctx context.Context, b *bot.DiscordBot, g
 		return nil, err
 	}
 
-	// Validate required fields
 	if eventPayload.InviteeDiscordID == "" {
-		return nil, fmt.Errorf("invitee_discord_id is required")
+		slog.Warn("team.invite.sent: invitee_discord_id is empty, skipping")
+		return nil, nil
 	}
 	if eventPayload.TeamName == "" {
-		return nil, fmt.Errorf("team_name is required")
+		slog.Warn("team.invite.sent: team_name is empty, skipping")
+		return nil, nil
 	}
 
-	// Build DM content
 	content := fmt.Sprintf(
 		"**[チーム招待]**\n\n"+
 			"**%s**さんから **%s** チームに招待されました。\n"+
@@ -54,7 +54,6 @@ func (h *TeamInviteSentHandler) Handle(ctx context.Context, b *bot.DiscordBot, g
 // TeamInviteAcceptedHandler handles team.invite.accepted events
 type TeamInviteAcceptedHandler struct{}
 
-// NewTeamInviteAcceptedHandler creates a new TeamInviteAcceptedHandler
 func NewTeamInviteAcceptedHandler() *TeamInviteAcceptedHandler {
 	return &TeamInviteAcceptedHandler{}
 }
@@ -66,15 +65,15 @@ func (h *TeamInviteAcceptedHandler) Handle(ctx context.Context, b *bot.DiscordBo
 		return nil, err
 	}
 
-	// Validate required fields
 	if eventPayload.DiscordTextChannelID == "" {
-		return nil, fmt.Errorf("discord_text_channel_id is required")
+		slog.Warn("team.invite.accepted: discord_text_channel_id is empty, skipping")
+		return nil, nil
 	}
 	if eventPayload.InviteeDiscordID == "" {
-		return nil, fmt.Errorf("invitee_discord_id is required")
+		slog.Warn("team.invite.accepted: invitee_discord_id is empty, skipping")
+		return nil, nil
 	}
 
-	// Send notification to team channel
 	result, err := b.SendTeamInviteNotification(
 		eventPayload.DiscordTextChannelID,
 		eventPayload.InviterDiscordID,
@@ -94,7 +93,6 @@ func (h *TeamInviteAcceptedHandler) Handle(ctx context.Context, b *bot.DiscordBo
 // TeamInviteRejectedHandler handles team.invite.rejected events
 type TeamInviteRejectedHandler struct{}
 
-// NewTeamInviteRejectedHandler creates a new TeamInviteRejectedHandler
 func NewTeamInviteRejectedHandler() *TeamInviteRejectedHandler {
 	return &TeamInviteRejectedHandler{}
 }
@@ -106,12 +104,11 @@ func (h *TeamInviteRejectedHandler) Handle(ctx context.Context, b *bot.DiscordBo
 		return nil, err
 	}
 
-	// Validate required fields
 	if eventPayload.InviterDiscordID == "" {
-		return nil, fmt.Errorf("inviter_discord_id is required")
+		slog.Warn("team.invite.rejected: inviter_discord_id is empty, skipping")
+		return nil, nil
 	}
 
-	// Build DM content for team leader
 	content := fmt.Sprintf(
 		"**[招待拒否]**\n\n"+
 			"**%s**さんが **%s** チームへの招待を拒否しました。",
@@ -132,7 +129,6 @@ func (h *TeamInviteRejectedHandler) Handle(ctx context.Context, b *bot.DiscordBo
 // TeamMemberJoinedHandler handles team.member.joined events
 type TeamMemberJoinedHandler struct{}
 
-// NewTeamMemberJoinedHandler creates a new TeamMemberJoinedHandler
 func NewTeamMemberJoinedHandler() *TeamMemberJoinedHandler {
 	return &TeamMemberJoinedHandler{}
 }
@@ -144,15 +140,15 @@ func (h *TeamMemberJoinedHandler) Handle(ctx context.Context, b *bot.DiscordBot,
 		return nil, err
 	}
 
-	// Validate required fields
 	if eventPayload.DiscordTextChannelID == "" {
-		return nil, fmt.Errorf("discord_text_channel_id is required")
+		slog.Warn("team.member.joined: discord_text_channel_id is empty, skipping")
+		return nil, nil
 	}
 	if eventPayload.DiscordUserID == "" {
-		return nil, fmt.Errorf("discord_user_id is required")
+		slog.Warn("team.member.joined: discord_user_id is empty, skipping")
+		return nil, nil
 	}
 
-	// Send notification to team channel
 	result, err := b.SendTeamMemberNotification(
 		eventPayload.DiscordTextChannelID,
 		eventPayload.DiscordUserID,
@@ -171,7 +167,6 @@ func (h *TeamMemberJoinedHandler) Handle(ctx context.Context, b *bot.DiscordBot,
 // TeamMemberLeftHandler handles team.member.left events
 type TeamMemberLeftHandler struct{}
 
-// NewTeamMemberLeftHandler creates a new TeamMemberLeftHandler
 func NewTeamMemberLeftHandler() *TeamMemberLeftHandler {
 	return &TeamMemberLeftHandler{}
 }
@@ -183,12 +178,11 @@ func (h *TeamMemberLeftHandler) Handle(ctx context.Context, b *bot.DiscordBot, g
 		return nil, err
 	}
 
-	// Validate required fields
 	if eventPayload.DiscordTextChannelID == "" {
-		return nil, fmt.Errorf("discord_text_channel_id is required")
+		slog.Warn("team.member.left: discord_text_channel_id is empty, skipping")
+		return nil, nil
 	}
 
-	// Send notification to team channel
 	result, err := b.SendTeamMemberNotification(
 		eventPayload.DiscordTextChannelID,
 		eventPayload.DiscordUserID,
@@ -207,7 +201,6 @@ func (h *TeamMemberLeftHandler) Handle(ctx context.Context, b *bot.DiscordBot, g
 // TeamMemberKickedHandler handles team.member.kicked events
 type TeamMemberKickedHandler struct{}
 
-// NewTeamMemberKickedHandler creates a new TeamMemberKickedHandler
 func NewTeamMemberKickedHandler() *TeamMemberKickedHandler {
 	return &TeamMemberKickedHandler{}
 }
@@ -219,12 +212,11 @@ func (h *TeamMemberKickedHandler) Handle(ctx context.Context, b *bot.DiscordBot,
 		return nil, err
 	}
 
-	// Validate required fields
 	if eventPayload.DiscordUserID == "" {
-		return nil, fmt.Errorf("discord_user_id is required")
+		slog.Warn("team.member.kicked: discord_user_id is empty, skipping")
+		return nil, nil
 	}
 
-	// Build DM content for kicked user
 	content := "**[チーム強制退出]**\n\n" +
 		"チームから退出されました。\n" +
 		"詳しい内容はチームリーダーにお問い合わせください。"
@@ -243,7 +235,6 @@ func (h *TeamMemberKickedHandler) Handle(ctx context.Context, b *bot.DiscordBot,
 // TeamLeadershipTransferredHandler handles team.leadership.transferred events
 type TeamLeadershipTransferredHandler struct{}
 
-// NewTeamLeadershipTransferredHandler creates a new TeamLeadershipTransferredHandler
 func NewTeamLeadershipTransferredHandler() *TeamLeadershipTransferredHandler {
 	return &TeamLeadershipTransferredHandler{}
 }
@@ -255,15 +246,15 @@ func (h *TeamLeadershipTransferredHandler) Handle(ctx context.Context, b *bot.Di
 		return nil, err
 	}
 
-	// Validate required fields
 	if eventPayload.DiscordTextChannelID == "" {
-		return nil, fmt.Errorf("discord_text_channel_id is required")
+		slog.Warn("team.leadership.transferred: discord_text_channel_id is empty, skipping")
+		return nil, nil
 	}
 	if eventPayload.LeaderDiscordID == "" {
-		return nil, fmt.Errorf("leader_discord_id is required")
+		slog.Warn("team.leadership.transferred: leader_discord_id is empty, skipping")
+		return nil, nil
 	}
 
-	// Send notification to team channel
 	result, err := b.SendTeamStatusNotification(
 		eventPayload.DiscordTextChannelID,
 		eventPayload.LeaderDiscordID,
@@ -280,7 +271,6 @@ func (h *TeamLeadershipTransferredHandler) Handle(ctx context.Context, b *bot.Di
 // TeamFinalizedHandler handles team.finalized events
 type TeamFinalizedHandler struct{}
 
-// NewTeamFinalizedHandler creates a new TeamFinalizedHandler
 func NewTeamFinalizedHandler() *TeamFinalizedHandler {
 	return &TeamFinalizedHandler{}
 }
@@ -292,15 +282,15 @@ func (h *TeamFinalizedHandler) Handle(ctx context.Context, b *bot.DiscordBot, gu
 		return nil, err
 	}
 
-	// Validate required fields
 	if eventPayload.DiscordTextChannelID == "" {
-		return nil, fmt.Errorf("discord_text_channel_id is required")
+		slog.Warn("team.finalized: discord_text_channel_id is empty, skipping")
+		return nil, nil
 	}
 	if eventPayload.LeaderDiscordID == "" {
-		return nil, fmt.Errorf("leader_discord_id is required")
+		slog.Warn("team.finalized: leader_discord_id is empty, skipping")
+		return nil, nil
 	}
 
-	// Send notification to team channel
 	result, err := b.SendTeamStatusNotification(
 		eventPayload.DiscordTextChannelID,
 		eventPayload.LeaderDiscordID,
@@ -317,7 +307,6 @@ func (h *TeamFinalizedHandler) Handle(ctx context.Context, b *bot.DiscordBot, gu
 // TeamDeletedHandler handles team.deleted events
 type TeamDeletedHandler struct{}
 
-// NewTeamDeletedHandler creates a new TeamDeletedHandler
 func NewTeamDeletedHandler() *TeamDeletedHandler {
 	return &TeamDeletedHandler{}
 }
@@ -329,12 +318,11 @@ func (h *TeamDeletedHandler) Handle(ctx context.Context, b *bot.DiscordBot, guil
 		return nil, err
 	}
 
-	// Validate required fields
 	if eventPayload.DiscordTextChannelID == "" {
-		return nil, fmt.Errorf("discord_text_channel_id is required")
+		slog.Warn("team.deleted: discord_text_channel_id is empty, skipping")
+		return nil, nil
 	}
 
-	// Send notification to team channel
 	result, err := b.SendTeamStatusNotification(
 		eventPayload.DiscordTextChannelID,
 		eventPayload.LeaderDiscordID,
