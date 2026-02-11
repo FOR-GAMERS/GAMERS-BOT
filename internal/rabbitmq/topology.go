@@ -6,34 +6,16 @@ type QueueBinding struct {
 	RoutingKeys []string
 }
 
-// DefaultQueueBindings returns the 4 new queue bindings for the gamers.events exchange
+// DefaultQueueBindings returns the unified notification queue binding for the gamers.events exchange.
+// All notification events are consumed from a single dedicated queue: discord.bot.notifications.
 func DefaultQueueBindings() []QueueBinding {
 	return []QueueBinding{
 		{
-			QueueName: "bot.contest.notifications",
+			QueueName: "discord.bot.notifications",
 			RoutingKeys: []string{
 				"contest.#",
-			},
-		},
-		{
-			QueueName: "bot.team.notifications",
-			RoutingKeys: []string{
 				"game.team.#",
-			},
-		},
-		{
-			QueueName: "bot.game.notifications",
-			RoutingKeys: []string{
-				"game.scheduled",
-				"game.activated",
-				"game.match.*",
-				"game.finished",
-			},
-		},
-		{
-			QueueName: "bot.contest.teams.ready",
-			RoutingKeys: []string{
-				"game.contest.teams.ready",
+				"game.game.#",
 			},
 		},
 	}

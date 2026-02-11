@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/gamers-bot/internal/bot"
 	"github.com/gamers-bot/internal/handlers"
@@ -23,6 +24,7 @@ type ConsumerManager struct {
 	publisher     *Publisher // used only by legacy consumer for responses
 	handlers      map[EventType]handlers.Handler
 	channels      []*amqp.Channel
+	dedup         *DedupCache
 }
 
 // NewConsumerManager creates a new ConsumerManager.
@@ -35,6 +37,7 @@ func NewConsumerManager(conn *amqp.Connection, exchange string, prefetchCount in
 		bot:           bot,
 		publisher:     publisher,
 		handlers:      make(map[EventType]handlers.Handler),
+		dedup:         NewDedupCache(1 * time.Hour),
 	}
 }
 
@@ -70,11 +73,11 @@ func (cm *ConsumerManager) SetupTopology() error {
 	for _, qb := range DefaultQueueBindings() {
 		_, err = ch.QueueDeclare(
 			qb.QueueName, // name
-			true,          // durable
-			false,         // delete when unused
-			false,         // exclusive
-			false,         // no-wait
-			nil,           // arguments
+			true,         // durable
+			false,        // delete when unused
+			false,        // exclusive
+			false,        // no-wait
+			nil,          // arguments
 		)
 		if err != nil {
 			return fmt.Errorf("failed to declare queue %s: %w", qb.QueueName, err)
@@ -254,22 +257,13 @@ func (cm *ConsumerManager) consumeNotificationQueue(ctx context.Context, queueNa
 // handleNotificationMessage processes a message from a notification queue.
 // Dispatches by AMQP header event_type first, falls back to JSON body event_type.
 func (cm *ConsumerManager) handleNotificationMessage(ctx context.Context, msg amqp.Delivery, queueName string) {
-	slog.Info("Received notification message", "queue", queueName, "body", string(msg.Body))
+	slog.Info("Received notification message", "queue", queueName, "routing_key", msg.RoutingKey, "body", string(msg.Body))
 
 	// Determine event type: prefer AMQP header, fallback to JSON body
 	eventType := cm.resolveEventType(msg)
 	if eventType == "" {
 		slog.Error("Cannot determine event_type", "queue", queueName)
-		msg.Nack(false, false)
-		return
-	}
-
-	slog.Info("Dispatching notification event", "queue", queueName, "event_type", eventType)
-
-	handler, ok := cm.handlers[eventType]
-	if !ok {
-		slog.Warn("No handler registered for event type", "event_type", eventType, "queue", queueName)
-		msg.Nack(false, false)
+		msg.Nack(false, false) // discard: unrecoverable
 		return
 	}
 
@@ -277,23 +271,47 @@ func (cm *ConsumerManager) handleNotificationMessage(ctx context.Context, msg am
 	var payload map[string]interface{}
 	if err := json.Unmarshal(msg.Body, &payload); err != nil {
 		slog.Error("Failed to unmarshal notification payload", "error", err, "queue", queueName)
-		msg.Nack(false, false)
+		msg.Nack(false, false) // discard: malformed JSON won't fix itself
 		return
 	}
 
-	// Extract guild_id
+	// Idempotency check: skip duplicate events based on event_id
+	eventID, _ := payload["event_id"].(string)
+	if cm.dedup.IsDuplicate(eventID) {
+		slog.Warn("Duplicate event detected, skipping", "event_id", eventID, "event_type", eventType)
+		msg.Ack(false) // ack so it doesn't get redelivered
+		return
+	}
+
+	slog.Info("Dispatching notification event", "queue", queueName, "event_type", eventType, "event_id", eventID)
+
+	handler, ok := cm.handlers[eventType]
+	if !ok {
+		slog.Warn("No handler registered for event type", "event_type", eventType, "queue", queueName)
+		msg.Nack(false, false) // discard: no handler will magically appear
+		return
+	}
+
+	// Extract and validate guild_id
 	guildID := extractGuildID(payload)
+	if guildID == "" {
+		slog.Warn("Missing guild_id in notification event, proceeding without it",
+			"event_type", eventType, "event_id", eventID)
+	}
 
 	// Handle the event
 	_, err := handler.Handle(ctx, cm.bot, guildID, payload)
 	if err != nil {
-		slog.Error("Notification handler failed", "event_type", eventType, "queue", queueName, "error", err)
-		msg.Nack(false, false)
+		slog.Error("Notification handler failed",
+			"event_type", eventType, "queue", queueName,
+			"event_id", eventID, "error", err)
+		// Requeue for retry on handler errors (e.g. transient Discord API failures)
+		msg.Nack(false, true)
 		return
 	}
 
 	msg.Ack(false)
-	slog.Info("Notification event processed", "event_type", eventType, "queue", queueName)
+	slog.Info("Notification event processed", "event_type", eventType, "queue", queueName, "event_id", eventID)
 }
 
 // consumeLegacyQueue consumes from the legacy queue with request/response pattern.
@@ -399,13 +417,6 @@ func (cm *ConsumerManager) handleLegacyMessage(ctx context.Context, msg amqp.Del
 	data, err := handler.Handle(ctx, cm.bot, guildID, payload)
 	if err != nil {
 		slog.Error("Legacy handler failed", "correlation_id", request.CorrelationID, "error", err)
-
-		if isRetriableError() {
-			slog.Info("Requeuing legacy message", "correlation_id", request.CorrelationID)
-			msg.Nack(false, true)
-			return
-		}
-
 		cm.sendErrorResponse(ctx, request.CorrelationID, err)
 		msg.Nack(false, false)
 		return
@@ -480,11 +491,6 @@ func (cm *ConsumerManager) sendErrorResponse(ctx context.Context, correlationID 
 	}
 }
 
-// isRetriableError determines if an error is retriable
-func isRetriableError() bool {
-	return false
-}
-
 // isApplicationEvent checks if the event type is an application event
 func isApplicationEvent(eventType EventType) bool {
 	switch eventType {
@@ -505,23 +511,6 @@ func isTeamEvent(eventType EventType) bool {
 	default:
 		return false
 	}
-}
-
-// isGameEvent checks if the event type is a game lifecycle event
-func isGameEvent(eventType EventType) bool {
-	switch eventType {
-	case EventGameScheduled, EventGameActivated,
-		EventGameMatchDetecting, EventGameMatchDetected, EventGameMatchFailed,
-		EventGameFinished:
-		return true
-	default:
-		return false
-	}
-}
-
-// isContestTeamsReadyEvent checks if the event type is contest teams ready
-func isContestTeamsReadyEvent(eventType EventType) bool {
-	return eventType == EventContestTeamsReady
 }
 
 // Close closes all channels managed by the ConsumerManager
